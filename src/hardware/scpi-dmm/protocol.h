@@ -100,6 +100,7 @@ SR_PRIV int scpi_dmm_set_mq(const struct sr_dev_inst *sdi,
 	enum sr_mq mq, enum sr_mqflag flag);
 SR_PRIV int scpi_dmm_get_meas_agilent(const struct sr_dev_inst *sdi, size_t ch);
 SR_PRIV int scpi_dmm_get_meas_gwinstek(const struct sr_dev_inst *sdi, size_t ch);
+SR_PRIV int scpi_dmm_get_meas_keithley(const struct sr_dev_inst *sdi, size_t ch);
 SR_PRIV int scpi_dmm_receive_data(int fd, int revents, void *cb_data);
 
 #endif

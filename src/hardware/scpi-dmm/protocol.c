@@ -600,6 +600,139 @@ SR_PRIV int scpi_dmm_get_meas_gwinstek(const struct sr_dev_inst *sdi, size_t ch)
 	return SR_OK;
 }
 
+SR_PRIV int scpi_dmm_get_meas_keithley(const struct sr_dev_inst *sdi, size_t ch)
+{
+	struct sr_scpi_dev_inst *scpi;
+	struct dev_context *devc;
+	struct scpi_dmm_acq_info *info;
+	struct sr_datafeed_analog *analog;
+	int ret;
+	enum sr_mq mq;
+	enum sr_mqflag mqflag;
+	char *mode_response;
+	const char *p;
+	char **fields;
+	size_t count;
+	char prec_text[20];
+	const struct mqopt_item *item;
+	int prec_exp;
+	const char *command;
+	char *response;
+	gboolean use_double;
+	int sig_digits, val_exp;
+	enum sr_unit unit;
+	double limit;
+
+	scpi = sdi->conn;
+	devc = sdi->priv;
+	info = &devc->run_acq_info;
+	analog = &info->analog[ch];
+
+	/*
+	 * Get the meter's current mode, keep the response around.
+	 * Skip the measurement if the mode is uncertain.
+	 */
+	ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, &mode_response, &item);
+	if (ret != SR_OK) {
+		g_free(mode_response);
+		return ret;
+	}
+	if (!mode_response)
+		return SR_ERR;
+	if (!mq) {
+		g_free(mode_response);
+		return +1;
+	}
+
+	/*
+	 * Get the measurement value. Make sure to strip trailing space
+	 * or else number conversion may fail in fatal ways. Detect OL
+	 * conditions. Determine the measurement's precision: Count the
+	 * number of significant digits before the period, and get the
+	 * exponent's value.
+	 *
+	 * The text presentation of values is like this:
+	 *   +1.09450000E-01
+	 * Skip space/sign, count digits before the period, skip to the
+	 * exponent, get exponent value.
+	 *
+	 * TODO Can sr_parse_rational() return the exponent for us? In
+	 * addition to providing a precise rational value instead of a
+	 * float that's an approximation of the received value? Can the
+	 * 'analog' struct that we fill in carry rationals?
+	 *
+	 * Use double precision FP here during conversion. Optionally
+	 * downgrade to single precision later to reduce the amount of
+	 * logged information.
+	 */
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_QUERY_VALUE);
+	if (!command || !*command)
+		return SR_ERR_NA;
+	scpi_dmm_cmd_delay(scpi);
+	ret = sr_scpi_get_string(scpi, command, &response);
+	if (ret != SR_OK)
+		return ret;
+	g_strstrip(response);
+	ret = sr_atod_ascii(response, &info->d_value);
+	if (ret != SR_OK) {
+		g_free(response);
+		return ret;
+	}
+	if (!response)
+		return SR_ERR;
+	limit = 9e37;
+	if (info->d_value > +limit) {
+		info->d_value = +INFINITY;
+	} else if (info->d_value < -limit) {
+		info->d_value = -INFINITY;
+	}
+	g_free(response);
+
+	/*
+	 * Fill in the 'analog' description: value, encoding, meaning.
+	 * Callers will fill in the sample count, and channel name,
+	 * and will send out the packet.
+	 */
+
+	info->f_value = info->d_value;
+	analog->data = &info->f_value;
+	analog->encoding->unitsize = sizeof(info->f_value);
+
+	analog->encoding->digits = 6;
+	analog->meaning->mq = mq;
+	analog->meaning->mqflags = mqflag;
+	switch (mq) {
+	case SR_MQ_VOLTAGE:
+		unit = SR_UNIT_VOLT;
+		break;
+	case SR_MQ_CURRENT:
+		unit = SR_UNIT_AMPERE;
+		break;
+	case SR_MQ_RESISTANCE:
+	case SR_MQ_CONTINUITY:
+		unit = SR_UNIT_OHM;
+		break;
+	case SR_MQ_CAPACITANCE:
+		unit = SR_UNIT_FARAD;
+		break;
+	case SR_MQ_TEMPERATURE:
+		unit = SR_UNIT_CELSIUS;
+		break;
+	case SR_MQ_FREQUENCY:
+		unit = SR_UNIT_HERTZ;
+		break;
+	case SR_MQ_TIME:
+		unit = SR_UNIT_SECOND;
+		break;
+	default:
+		return SR_ERR_NA;
+	}
+	analog->meaning->unit = unit;
+	analog->spec->spec_digits = 6;
+
+	return SR_OK;
+}
+
 /* Strictly speaking this is a timer controlled poll routine. */
 SR_PRIV int scpi_dmm_receive_data(int fd, int revents, void *cb_data)
 {

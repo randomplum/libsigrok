@@ -37,6 +37,7 @@ static const uint32_t devopts_generic[] = {
 	SR_CONF_LIMIT_SAMPLES | SR_CONF_GET | SR_CONF_SET,
 	SR_CONF_LIMIT_MSEC | SR_CONF_GET | SR_CONF_SET,
 	SR_CONF_MEASURED_QUANTITY | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
+	//SR_CONF_RANGE | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
 };
 
 static const struct scpi_command cmdset_agilent[] = {
@@ -113,6 +114,17 @@ static const struct scpi_command cmdset_owon[] = {
 	ALL_ZERO,
 };
 
+static const struct scpi_command cmdset_keithley[] = {
+	{ DMM_CMD_SETUP_REMOTE, "\n", },
+	{ DMM_CMD_SETUP_FUNC, ":FUNC \"%s\"", },
+	{ DMM_CMD_QUERY_FUNC, "FUNC?", },
+	{ DMM_CMD_START_ACQ, "READ?", },
+	{ DMM_CMD_STOP_ACQ, "ABORT", },
+	{ DMM_CMD_QUERY_VALUE, "READ?", },
+	//{ DMM_CMD_QUERY_PREC, "", },
+	ALL_ZERO,
+};
+
 static const struct mqopt_item mqopts_agilent_34405a[] = {
 	{ SR_MQ_VOLTAGE, SR_MQFLAG_DC, "VOLT:DC", "VOLT ", NO_DFLT_PREC, },
 	{ SR_MQ_VOLTAGE, SR_MQFLAG_AC, "VOLT:AC", "VOLT:AC ", NO_DFLT_PREC, },
@@ -185,6 +197,23 @@ static const struct mqopt_item mqopts_owon_xdm2041[] = {
 	{ SR_MQ_CAPACITANCE, 0, "CAP", "CAP", NO_DFLT_PREC, },
 };
 
+static const struct mqopt_item mqopts_keithley_dmm6500[] = {
+	{ SR_MQ_VOLTAGE, SR_MQFLAG_DC, "VOLT:DC", "VOLT:DC", NO_DFLT_PREC, },
+	{ SR_MQ_VOLTAGE, SR_MQFLAG_AC, "VOLT:AC", "VOLT:AC", NO_DFLT_PREC, },
+	{ SR_MQ_CURRENT, SR_MQFLAG_DC, "CURR:DC", "CURR:DC", NO_DFLT_PREC, },
+	{ SR_MQ_CURRENT, SR_MQFLAG_AC, "CURR:AC", "CURR:AC", NO_DFLT_PREC, },
+	{ SR_MQ_CURRENT, SR_MQFLAG_DC, "CURR:DC", "CURR:DC", NO_DFLT_PREC, }, /* mA */
+	{ SR_MQ_CURRENT, SR_MQFLAG_AC, "CURR:AC", "CURR:AC", NO_DFLT_PREC, }, /* mA */
+	{ SR_MQ_RESISTANCE, 0, "RES", "RES", NO_DFLT_PREC, },
+	{ SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE, "FRES", "FRES", NO_DFLT_PREC, },
+	{ SR_MQ_CONTINUITY, 0, "CONT", "CONT", -1, },
+	{ SR_MQ_VOLTAGE, SR_MQFLAG_DC | SR_MQFLAG_DIODE, "DIOD", "DIOD", -4, },
+	{ SR_MQ_TEMPERATURE, 0, "TEMP", "TEMP", NO_DFLT_PREC, }, /* Celsius */
+	{ SR_MQ_FREQUENCY, 0, "FREQ", "FREQ", NO_DFLT_PREC, },
+	{ SR_MQ_TIME, 0, "PER", "PER", NO_DFLT_PREC, },
+	{ SR_MQ_CAPACITANCE, 0, "CAP", "CAP", NO_DFLT_PREC, },
+};
+
 SR_PRIV const struct scpi_dmm_model models[] = {
 	{
 		"Agilent", "34405A",
@@ -235,6 +264,21 @@ SR_PRIV const struct scpi_dmm_model models[] = {
 		ARRAY_AND_SIZE(devopts_generic),
 		/* 34401A: typ. 1020ms for AC readings (default is 1000ms). */
 		1000 * 1500, 0,
+	},
+	{
+		"KEITHLEY INSTRUMENTS INC.", "34401A",
+		1, 6, cmdset_hp, ARRAY_AND_SIZE(mqopts_agilent_34401a),
+		scpi_dmm_get_meas_agilent,
+		ARRAY_AND_SIZE(devopts_generic),
+		/* 34401A: typ. 1020ms for AC readings (default is 1000ms). */
+		1000 * 1500, 0,
+	},
+	{
+		"KEITHLEY INSTRUMENTS", "MODEL DMM6500",
+		1, 5, cmdset_keithley, ARRAY_AND_SIZE(mqopts_keithley_dmm6500),
+		scpi_dmm_get_meas_keithley,
+		ARRAY_AND_SIZE(devopts_generic),
+		0, 0,
 	},
 	{
 		"Keysight", "34465A",
@@ -436,6 +480,9 @@ static int config_get(uint32_t key, GVariant **data,
 		arr[1] = g_variant_new_uint64(mqflag);
 		*data = g_variant_new_tuple(arr, ARRAY_SIZE(arr));
 		return SR_OK;
+	case SR_CONF_RANGE:
+		sr_dbg("Get Range %d", __LINE__);
+		return SR_OK;
 	default:
 		return SR_ERR_NA;
 	}
@@ -465,6 +512,9 @@ static int config_set(uint32_t key, GVariant *data,
 		mqflag = g_variant_get_uint64(tuple_child);
 		g_variant_unref(tuple_child);
 		return scpi_dmm_set_mq(sdi, mq, mqflag);
+	case SR_CONF_RANGE:
+		sr_dbg("Set Range list %d", __LINE__);
+		return SR_OK;
 	default:
 		return SR_ERR_NA;
 	}
@@ -504,6 +554,9 @@ static int config_list(uint32_t key, GVariant **data,
 		}
 		*data = g_variant_builder_end(&gvb);
 		return SR_OK;
+	case SR_CONF_RANGE:
+		sr_dbg("Get Range list %d", __LINE__);
+		return SR_ERR_NA;
 	default:
 		(void)devc;
 		return SR_ERR_NA;
