@@ -129,6 +129,80 @@ SR_PRIV int scpi_dmm_get_mq(const struct sr_dev_inst *sdi,
 	return ret;
 }
 
+SR_PRIV int scpi_dmm_get_range_auto(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, char **range)
+{
+	struct dev_context *devc;
+	const char *command;
+	char *buf;
+	int ret;
+	int len;
+	const struct mqopt_item *item;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+
+	scpi_dmm_cmd_delay(sdi->conn);
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_QUERY_RANGE_AUTO);
+	if (!command || !*command)
+		return SR_ERR_NA;
+	*range = NULL;
+
+	len = snprintf(NULL, 0, command, item->scpi_func_query);
+	buf = g_malloc0(len + 2);
+	sr_sprintf_ascii(buf, command, item->scpi_func_query);
+	ret = sr_scpi_get_string(sdi->conn, buf, range);
+	g_free(buf);
+
+	if (ret != SR_OK)
+		return ret;
+	if (!*range || !**range)
+		return SR_ERR_NA;
+	if (g_strcmp0(*range, "1") == 0) {
+		g_free(*range);
+		*range = g_malloc0(5);
+		sr_sprintf_ascii(*range,"AUTO");
+	}
+	return SR_OK;
+}
+
+SR_PRIV int scpi_dmm_get_range(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, char **range)
+{
+	struct dev_context *devc;
+	const char *command;
+	char *buf;
+	int ret;
+	int len;
+	const struct mqopt_item *item;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+
+	scpi_dmm_cmd_delay(sdi->conn);
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_QUERY_RANGE);
+	if (!command || !*command)
+		return SR_ERR_NA;
+	*range = NULL;
+
+	len = snprintf(NULL, 0, command, item->scpi_func_query);
+	buf = g_malloc0(len + 2);
+	sr_sprintf_ascii(buf, command, item->scpi_func_query);
+	ret = sr_scpi_get_string(sdi->conn, buf, range);
+	g_free(buf);
+
+	if (ret != SR_OK)
+		return ret;
+	if (!*range || !**range)
+		return SR_ERR_NA;
+
+	return ret;
+}
+
 SR_PRIV int scpi_dmm_set_mq(const struct sr_dev_inst *sdi,
 	enum sr_mq mq, enum sr_mqflag flag)
 {
@@ -150,6 +224,250 @@ SR_PRIV int scpi_dmm_set_mq(const struct sr_dev_inst *sdi,
 		return ret;
 
 	return SR_OK;
+}
+
+SR_PRIV int scpi_dmm_set_range(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, const char *range)
+{
+	struct dev_context *devc;
+	const struct mqopt_item *item;
+	const char *mode, *command;
+	int ret;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+
+	mode = item->scpi_func_setup;
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_SETUP_RANGE);
+	scpi_dmm_cmd_delay(sdi->conn);
+	ret = sr_scpi_send(sdi->conn, command, mode, range);
+	if (ret != SR_OK)
+		return ret;
+
+	return SR_OK;
+}
+
+
+SR_PRIV int scpi_dmm_set_range_auto(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag)
+{
+	struct dev_context *devc;
+	const struct mqopt_item *item;
+	const char *mode, *command;
+	int ret;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+
+	mode = item->scpi_func_setup;
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_SETUP_RANGE_AUTO);
+	scpi_dmm_cmd_delay(sdi->conn);
+	ret = sr_scpi_send(sdi->conn, command, mode);
+	if (ret != SR_OK)
+		return ret;
+
+	return SR_OK;
+}
+
+SR_PRIV int scpi_dmm_set_nplc(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, float nplc)
+{
+	struct dev_context *devc;
+	const struct mqopt_item *item;
+	const char *mode, *command;
+	int ret;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+
+	mode = item->scpi_func_setup;
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_SETUP_NPLC);
+	scpi_dmm_cmd_delay(sdi->conn);
+	ret = sr_scpi_send(sdi->conn, command, mode, nplc);
+	if (ret != SR_OK)
+		return ret;
+
+	return SR_OK;
+}
+
+SR_PRIV int scpi_dmm_get_nplc(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, float *nplc)
+{
+	struct dev_context *devc;
+	const char *command;
+	char *buf, *range;
+	int ret, len;
+	const struct mqopt_item *item;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+
+	scpi_dmm_cmd_delay(sdi->conn);
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_QUERY_NPLC);
+	if (!command || !*command)
+		return SR_ERR_NA;
+
+	len = snprintf(NULL, 0, command, item->scpi_func_query);
+	buf = g_malloc0(len + 2);
+	sr_sprintf_ascii(buf, command, item->scpi_func_query);
+	ret = sr_scpi_get_string(sdi->conn, buf, &range);
+	g_free(buf);
+
+	if (ret != SR_OK)
+		return ret;
+	if (!range || !*range)
+		return SR_ERR_NA;
+
+	ret = sr_atof_ascii(range, nplc);
+	if (ret != SR_OK) {
+		g_free(range);
+		return ret;
+	}
+
+	g_free(range);
+	return ret;
+}
+
+SR_PRIV int scpi_dmm_set_avg(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, gboolean avg)
+{
+	struct dev_context *devc;
+	const struct mqopt_item *item;
+	const char *mode, *command;
+	int ret;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+
+	mode = item->scpi_func_setup;
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_SETUP_AVG);
+	scpi_dmm_cmd_delay(sdi->conn);
+	ret = sr_scpi_send(sdi->conn, command, mode, avg ? 1:0);
+	if (ret != SR_OK)
+		return ret;
+
+	return SR_OK;
+}
+
+SR_PRIV int scpi_dmm_get_avg(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, gboolean *avg)
+{
+	struct dev_context *devc;
+	const char *command;
+	char *buf, *resp;
+	int ret, len;
+	const struct mqopt_item *item;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+
+	scpi_dmm_cmd_delay(sdi->conn);
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_QUERY_AVG);
+	if (!command || !*command)
+		return SR_ERR_NA;
+
+	len = snprintf(NULL, 0, command, item->scpi_func_query);
+	buf = g_malloc0(len + 2);
+	sr_sprintf_ascii(buf, command, item->scpi_func_query);
+	ret = sr_scpi_get_string(sdi->conn, buf, &resp);
+	g_free(buf);
+
+	if (ret != SR_OK)
+		return ret;
+	if (!resp || !*resp)
+		return SR_ERR_NA;
+
+	ret = sr_atoi(resp, &len);
+	*avg = (len == 0) ? FALSE:TRUE;
+	if (ret != SR_OK) {
+		g_free(resp);
+		return ret;
+	}
+
+	g_free(resp);
+	return ret;
+}
+
+SR_PRIV int scpi_dmm_set_avg_cnt(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, uint64_t cnt)
+{
+	struct dev_context *devc;
+	const struct mqopt_item *item;
+	const char *mode, *command;
+	int ret;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+	if (cnt > devc->model->avg_max ||
+		cnt < devc->model->avg_min ||
+		cnt < 1)
+		return SR_ERR_DATA;
+
+	mode = item->scpi_func_setup;
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_SETUP_AVG_COUNT);
+	scpi_dmm_cmd_delay(sdi->conn);
+	ret = sr_scpi_send(sdi->conn, command, mode, cnt);
+	if (ret != SR_OK)
+		return ret;
+
+	return SR_OK;
+}
+
+SR_PRIV int scpi_dmm_get_avg_cnt(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, uint64_t *cnt)
+{
+	struct dev_context *devc;
+	const char *command;
+	char *buf, *resp;
+	int ret, len;
+	const struct mqopt_item *item;
+
+	devc = sdi->priv;
+	item = scpi_dmm_lookup_mq_number(sdi, mq, flag);
+	if (!item)
+		return SR_ERR_NA;
+
+	scpi_dmm_cmd_delay(sdi->conn);
+	command = sr_scpi_cmd_get(devc->cmdset, DMM_CMD_QUERY_AVG_COUNT);
+	if (!command || !*command)
+		return SR_ERR_NA;
+
+	len = snprintf(NULL, 0, command, item->scpi_func_query);
+	buf = g_malloc0(len + 2);
+	sr_sprintf_ascii(buf, command, item->scpi_func_query);
+	ret = sr_scpi_get_string(sdi->conn, buf, &resp);
+	g_free(buf);
+
+	if (ret != SR_OK)
+		return ret;
+	if (!resp || !*resp)
+		return SR_ERR_NA;
+
+	ret = sr_atoi(resp, &len);
+	if (len < 0 )
+		return SR_ERR_DATA;
+	*cnt = (uint64_t)len;
+	if (ret != SR_OK) {
+		g_free(resp);
+		return ret;
+	}
+
+	g_free(resp);
+	return ret;
 }
 
 SR_PRIV int scpi_dmm_get_meas_agilent(const struct sr_dev_inst *sdi, size_t ch)
@@ -609,19 +927,17 @@ SR_PRIV int scpi_dmm_get_meas_keithley(const struct sr_dev_inst *sdi, size_t ch)
 	int ret;
 	enum sr_mq mq;
 	enum sr_mqflag mqflag;
-	char *mode_response;
-	const char *p;
-	char **fields;
-	size_t count;
-	char prec_text[20];
-	const struct mqopt_item *item;
-	int prec_exp;
+	char *range_query = NULL;
 	const char *command;
 	char *response;
 	gboolean use_double;
-	int sig_digits, val_exp;
+	int val_exp;
+	int digits;
 	enum sr_unit unit;
 	double limit;
+	double range = 0;
+	int range_exp;
+	size_t i;
 
 	scpi = sdi->conn;
 	devc = sdi->priv;
@@ -632,18 +948,33 @@ SR_PRIV int scpi_dmm_get_meas_keithley(const struct sr_dev_inst *sdi, size_t ch)
 	 * Get the meter's current mode, keep the response around.
 	 * Skip the measurement if the mode is uncertain.
 	 */
-	ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, &mode_response, &item);
+	ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
 	if (ret != SR_OK) {
-		g_free(mode_response);
 		return ret;
 	}
-	if (!mode_response)
-		return SR_ERR;
-	if (!mq) {
-		g_free(mode_response);
-		return +1;
+	for (i = 0; i < devc->model->rageopts_size; i++) {
+		if (devc->model->rangeopts[i].mq == mq &&
+			devc->model->rangeopts[i].mqflag == mqflag &&
+			g_strcmp0(devc->model->rangeopts[i].scpi_range, "") == 0) {
+			range = 0;
+			break;
+			}
 	}
-
+	if (i == devc->model->rageopts_size) {
+		ret = scpi_dmm_get_range(sdi, mq, mqflag, &range_query);
+		if (ret != SR_OK) {
+			return ret;
+		}
+		ret = sr_atod_ascii(range_query, &range);
+		if (ret != SR_OK) {
+			return ret;
+		}
+	}
+	if (range !=0) {
+		range_exp = (int)floor(log10(range));
+	} else {
+		range_exp = 0;
+	}
 	/*
 	 * Get the measurement value. Make sure to strip trailing space
 	 * or else number conversion may fail in fatal ways. Detect OL
@@ -673,6 +1004,7 @@ SR_PRIV int scpi_dmm_get_meas_keithley(const struct sr_dev_inst *sdi, size_t ch)
 	if (ret != SR_OK)
 		return ret;
 	g_strstrip(response);
+	use_double = FALSE;
 	ret = sr_atod_ascii(response, &info->d_value);
 	if (ret != SR_OK) {
 		g_free(response);
@@ -687,18 +1019,37 @@ SR_PRIV int scpi_dmm_get_meas_keithley(const struct sr_dev_inst *sdi, size_t ch)
 		info->d_value = -INFINITY;
 	}
 	g_free(response);
+	if (ret != SR_OK)
+		return ret;
+
+	if (info->d_value !=0) {
+		val_exp = (int)floor(log10(fabsf((float)info->d_value)));
+	} else {
+		val_exp = 0;
+	}
+
+	sr_dbg(" val_exp %d range_exp %d", val_exp, range_exp);
+
+
+	if (val_exp > range_exp)
+		digits = -(val_exp - 6);
+	else
+		digits = -(range_exp - 6);
 
 	/*
 	 * Fill in the 'analog' description: value, encoding, meaning.
 	 * Callers will fill in the sample count, and channel name,
 	 * and will send out the packet.
 	 */
-
-	info->f_value = info->d_value;
-	analog->data = &info->f_value;
-	analog->encoding->unitsize = sizeof(info->f_value);
-
-	analog->encoding->digits = 6;
+	if (use_double) {
+		analog->data = &info->d_value;
+		analog->encoding->unitsize = sizeof(info->d_value);
+	} else {
+		info->f_value = info->d_value;
+		analog->data = &info->f_value;
+		analog->encoding->unitsize = sizeof(info->f_value);
+	}
+	analog->encoding->digits = digits;
 	analog->meaning->mq = mq;
 	analog->meaning->mqflags = mqflag;
 	switch (mq) {
@@ -728,7 +1079,7 @@ SR_PRIV int scpi_dmm_get_meas_keithley(const struct sr_dev_inst *sdi, size_t ch)
 		return SR_ERR_NA;
 	}
 	analog->meaning->unit = unit;
-	analog->spec->spec_digits = 6;
+	analog->spec->spec_digits = digits;
 
 	return SR_OK;
 }

@@ -91,13 +91,24 @@ SR_PRIV int scpi_pps_receive_data(int fd, int revents, void *cb_data)
 		return SR_ERR;
 	}
 
-	ret = sr_scpi_cmd_resp(sdi, devc->device->commands,
-		channel_group_cmd, channel_group_name, &gvdata, gvtype, cmd);
+	if(devc->device->dialect == SCPI_DIALECT_EEZ) {
+		ret = sr_scpi_cmd_resp(sdi, devc->device->commands,
+			0, NULL, &gvdata, gvtype, cmd, channel_group_name);
+	} else {
+		ret = sr_scpi_cmd_resp(sdi, devc->device->commands,
+			channel_group_cmd, channel_group_name, &gvdata, gvtype, cmd);
+	}
 
 	if (ret != SR_OK)
 		return ret;
 
-	ch_spec = &devc->device->channels[pch->hw_output_idx];
+	if (devc->channels != NULL) {
+		// Dynamically-probed devices
+		ch_spec = &devc->channels[pch->hw_output_idx];
+	} else {
+		// Statically-configured devices
+		ch_spec = &devc->device->channels[pch->hw_output_idx];
+	}
 	packet.type = SR_DF_ANALOG;
 	packet.payload = &analog;
 	/* Note: digits/spec_digits will be overridden later. */

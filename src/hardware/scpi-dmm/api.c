@@ -37,7 +37,18 @@ static const uint32_t devopts_generic[] = {
 	SR_CONF_LIMIT_SAMPLES | SR_CONF_GET | SR_CONF_SET,
 	SR_CONF_LIMIT_MSEC | SR_CONF_GET | SR_CONF_SET,
 	SR_CONF_MEASURED_QUANTITY | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
-	//SR_CONF_RANGE | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
+};
+
+static const uint32_t devopts_keithley[] = {
+	SR_CONF_CONTINUOUS,
+	SR_CONF_CONN | SR_CONF_GET,
+	SR_CONF_LIMIT_SAMPLES | SR_CONF_GET | SR_CONF_SET,
+	SR_CONF_LIMIT_MSEC | SR_CONF_GET | SR_CONF_SET,
+	SR_CONF_MEASURED_QUANTITY | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
+	SR_CONF_RANGE | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
+	SR_CONF_AVERAGING | SR_CONF_GET | SR_CONF_SET,
+	SR_CONF_AVG_SAMPLES | SR_CONF_GET | SR_CONF_SET,
+	SR_CONF_ADC_POWERLINE_CYCLES | SR_CONF_GET | SR_CONF_SET,
 };
 
 static const struct scpi_command cmdset_agilent[] = {
@@ -118,10 +129,17 @@ static const struct scpi_command cmdset_keithley[] = {
 	{ DMM_CMD_SETUP_REMOTE, "\n", },
 	{ DMM_CMD_SETUP_FUNC, ":FUNC \"%s\"", },
 	{ DMM_CMD_QUERY_FUNC, "FUNC?", },
-	{ DMM_CMD_START_ACQ, "READ?", },
-	{ DMM_CMD_STOP_ACQ, "ABORT", },
 	{ DMM_CMD_QUERY_VALUE, "READ?", },
-	//{ DMM_CMD_QUERY_PREC, "", },
+	{ DMM_CMD_QUERY_RANGE, "%s:RANGE?", },
+	{ DMM_CMD_QUERY_RANGE_AUTO, "%s:RANGE:AUTO?", },
+	{ DMM_CMD_SETUP_RANGE, "%s:RANGE %s", },
+	{ DMM_CMD_SETUP_RANGE_AUTO, "%s:RANGE:AUTO 1", },
+	{ DMM_CMD_SETUP_NPLC, "%s:NPLC %2.4f", },
+	{ DMM_CMD_QUERY_NPLC, "%s:NPLC?", },
+	{ DMM_CMD_SETUP_AVG_COUNT, "%s:AVER:COUN %d", },
+	{ DMM_CMD_QUERY_AVG_COUNT, "%s:AVER:COUN?", },
+	{ DMM_CMD_SETUP_AVG, "%s:AVER %d", },
+	{ DMM_CMD_QUERY_AVG, "%s:AVER?", },
 	ALL_ZERO,
 };
 
@@ -202,8 +220,6 @@ static const struct mqopt_item mqopts_keithley_dmm6500[] = {
 	{ SR_MQ_VOLTAGE, SR_MQFLAG_AC, "VOLT:AC", "VOLT:AC", NO_DFLT_PREC, },
 	{ SR_MQ_CURRENT, SR_MQFLAG_DC, "CURR:DC", "CURR:DC", NO_DFLT_PREC, },
 	{ SR_MQ_CURRENT, SR_MQFLAG_AC, "CURR:AC", "CURR:AC", NO_DFLT_PREC, },
-	{ SR_MQ_CURRENT, SR_MQFLAG_DC, "CURR:DC", "CURR:DC", NO_DFLT_PREC, }, /* mA */
-	{ SR_MQ_CURRENT, SR_MQFLAG_AC, "CURR:AC", "CURR:AC", NO_DFLT_PREC, }, /* mA */
 	{ SR_MQ_RESISTANCE, 0, "RES", "RES", NO_DFLT_PREC, },
 	{ SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE, "FRES", "FRES", NO_DFLT_PREC, },
 	{ SR_MQ_CONTINUITY, 0, "CONT", "CONT", -1, },
@@ -214,48 +230,129 @@ static const struct mqopt_item mqopts_keithley_dmm6500[] = {
 	{ SR_MQ_CAPACITANCE, 0, "CAP", "CAP", NO_DFLT_PREC, },
 };
 
+static const struct scpi_dmm_rangeopts rangeopts_keithley_dmm6500[] = {
+	/* VOLT:DC. */
+	{SR_MQ_VOLTAGE, SR_MQFLAG_DC,          "AUTO",   "Auto"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_DC,           "0.1",   "100mV"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_DC,             "1",   "1V"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_DC,            "10",   "10V"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_DC,           "100",   "100V"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_DC,          "1000",   "1000V"},
+	/* VOLT:AC. */
+	{SR_MQ_VOLTAGE, SR_MQFLAG_AC,          "AUTO",   "Auto"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_AC,           "0.1",   "100mV"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_AC,             "1",   "1V"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_AC,            "10",   "10V"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_AC,           "100",   "100V"},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_AC,           "750",   "750V"},
+	/* CUR:DC */
+	{SR_MQ_CURRENT, SR_MQFLAG_DC,          "AUTO",   "Auto"},
+	{SR_MQ_CURRENT, SR_MQFLAG_DC,         "1E-05",   "10uA"},
+	{SR_MQ_CURRENT, SR_MQFLAG_DC,        "0.0001",   "100uA"},
+	{SR_MQ_CURRENT, SR_MQFLAG_DC,         "0.001",   "1mA"},
+	{SR_MQ_CURRENT, SR_MQFLAG_DC,          "0.01",   "10mA"},
+	{SR_MQ_CURRENT, SR_MQFLAG_DC,           "0.1",   "100mA"},
+	{SR_MQ_CURRENT, SR_MQFLAG_DC,             "1",   "1A"},
+	{SR_MQ_CURRENT, SR_MQFLAG_DC,             "3",   "3A"},
+	{SR_MQ_CURRENT, SR_MQFLAG_DC,            "10",   "10A"},
+	/* CUR:AC */
+	{SR_MQ_CURRENT, SR_MQFLAG_AC,          "AUTO",   "Auto"},
+	{SR_MQ_CURRENT, SR_MQFLAG_AC,         "0.001",   "1mA"},
+	{SR_MQ_CURRENT, SR_MQFLAG_AC,          "0.01",   "10mA"},
+	{SR_MQ_CURRENT, SR_MQFLAG_AC,           "0.1",   "100mA"},
+	{SR_MQ_CURRENT, SR_MQFLAG_AC,             "1",   "1A"},
+	{SR_MQ_CURRENT, SR_MQFLAG_AC,             "3",   "3A"},
+	/* RES */
+	{SR_MQ_RESISTANCE, 0,                  "AUTO",   "Auto"},
+	{SR_MQ_RESISTANCE, 0,                    "10",   "10"},
+	{SR_MQ_RESISTANCE, 0,                   "100",   "100"},
+	{SR_MQ_RESISTANCE, 0,                  "1000",   "1k"},
+	{SR_MQ_RESISTANCE, 0,                 "10000",   "10k"},
+	{SR_MQ_RESISTANCE, 0,                "100000",   "100k"},
+	{SR_MQ_RESISTANCE, 0,                 "1E+06",   "1M"},
+	{SR_MQ_RESISTANCE, 0,                 "1E+07",   "10M"},
+	{SR_MQ_RESISTANCE, 0,                 "1E+08",   "100M"},
+	/* FRES */
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE,   "AUTO",   "Auto"},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE,      "1",   "1"},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE,     "10",   "10"},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE,    "100",   "100"},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE,   "1000",   "1k"},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE,  "10000",   "10k"},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE, "100000",   "100k"},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE,  "1E+06",   "1M"},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE,  "1E+07",   "10M"},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE,  "1E+08",   "100M"},
+	/* DIOD */
+	{SR_MQ_VOLTAGE, SR_MQFLAG_DC | SR_MQFLAG_DIODE, "",   "10V"}, /* Fixed */
+	/* CAP */
+	{SR_MQ_CAPACITANCE, 0,                 "AUTO", "Auto"},
+	{SR_MQ_CAPACITANCE, 0,                 "1E-09", "1nF"},
+	{SR_MQ_CAPACITANCE, 0,                 "1E-08", "10nF"},
+	{SR_MQ_CAPACITANCE, 0,                 "1E-07", "100nF"},
+	{SR_MQ_CAPACITANCE, 0,                 "1E-06", "1uF"},
+	{SR_MQ_CAPACITANCE, 0,                 "1E-05", "10uF"},
+	{SR_MQ_CAPACITANCE, 0,                "0.0001", "100uF"},
+	/* CONT */
+	{SR_MQ_CONTINUITY, 0,                       "",   "1k"}, /* Fixed */
+	/* TEMP */
+	{SR_MQ_TEMPERATURE, 0,                      "", "Auto"}, /* Fixed */
+	/* FREQ */
+	{SR_MQ_FREQUENCY, 0,                        "", "Auto"}, /* Fixed */
+	/* PER */
+	{SR_MQ_TIME, 0,                             "", "Auto"}, /* Fixed */
+};
+
+static const struct scpi_dmm_nplcopts nplcopts_keithley_dmm6500[] = {
+	{SR_MQ_VOLTAGE, SR_MQFLAG_DC, 0.0005, 12.0},
+	{SR_MQ_CURRENT, SR_MQFLAG_DC, 0.0005, 12.0},
+	{SR_MQ_RESISTANCE, 0, 0.0005, 12.0},
+	{SR_MQ_RESISTANCE, SR_MQFLAG_FOUR_WIRE, 0.0005, 12.0},
+	{SR_MQ_VOLTAGE, SR_MQFLAG_DC | SR_MQFLAG_DIODE, 0.0005, 12.0},
+};
+
 SR_PRIV const struct scpi_dmm_model models[] = {
 	{
 		"Agilent", "34405A",
 		1, 5, cmdset_agilent, ARRAY_AND_SIZE(mqopts_agilent_34405a),
 		scpi_dmm_get_meas_agilent,
 		ARRAY_AND_SIZE(devopts_generic),
-		0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
 	},
 	{
 		"Agilent", "34410A",
 		1, 6, cmdset_hp, ARRAY_AND_SIZE(mqopts_agilent_34405a),
 		scpi_dmm_get_meas_agilent,
 		ARRAY_AND_SIZE(devopts_generic),
-		0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
 	},
 	{
 		"GW", "GDM8251A",
 		1, 6, cmdset_gwinstek, ARRAY_AND_SIZE(mqopts_gwinstek_gdm8200a),
 		scpi_dmm_get_meas_gwinstek,
 		ARRAY_AND_SIZE(devopts_generic),
-		1000 * 2500, 0,
+		1000 * 2500, 0, 0, 0, 0, 0, 0, 0,
 	},
 	{
 		"GW", "GDM8255A",
 		1, 6, cmdset_gwinstek, ARRAY_AND_SIZE(mqopts_gwinstek_gdm8200a),
 		scpi_dmm_get_meas_gwinstek,
 		ARRAY_AND_SIZE(devopts_generic),
-		1000 * 2500, 0,
+		1000 * 2500, 0, 0, 0, 0, 0, 0, 0,
 	},
 	{
 		"GWInstek", "GDM9060",
 		1, 6, cmdset_gwinstek_906x, ARRAY_AND_SIZE(mqopts_gwinstek_gdm906x),
 		scpi_dmm_get_meas_agilent,
 		ARRAY_AND_SIZE(devopts_generic),
-		0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
 	},
 	{
 		"GWInstek", "GDM9061",
 		1, 6, cmdset_gwinstek_906x, ARRAY_AND_SIZE(mqopts_gwinstek_gdm906x),
 		scpi_dmm_get_meas_agilent,
 		ARRAY_AND_SIZE(devopts_generic),
-		0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
 	},
 	{
 		"HP", "34401A",
@@ -263,7 +360,7 @@ SR_PRIV const struct scpi_dmm_model models[] = {
 		scpi_dmm_get_meas_agilent,
 		ARRAY_AND_SIZE(devopts_generic),
 		/* 34401A: typ. 1020ms for AC readings (default is 1000ms). */
-		1000 * 1500, 0,
+		1000 * 1500, 0, 0, 0, 0, 0, 0, 0,
 	},
 	{
 		"KEITHLEY INSTRUMENTS INC.", "34401A",
@@ -271,28 +368,31 @@ SR_PRIV const struct scpi_dmm_model models[] = {
 		scpi_dmm_get_meas_agilent,
 		ARRAY_AND_SIZE(devopts_generic),
 		/* 34401A: typ. 1020ms for AC readings (default is 1000ms). */
-		1000 * 1500, 0,
+		1000 * 1500, 0, 0, 0, 0, 0, 0, 0,
 	},
 	{
 		"KEITHLEY INSTRUMENTS", "MODEL DMM6500",
 		1, 5, cmdset_keithley, ARRAY_AND_SIZE(mqopts_keithley_dmm6500),
 		scpi_dmm_get_meas_keithley,
-		ARRAY_AND_SIZE(devopts_generic),
+		ARRAY_AND_SIZE(devopts_keithley),
 		0, 0,
+		ARRAY_AND_SIZE(rangeopts_keithley_dmm6500),
+		ARRAY_AND_SIZE(nplcopts_keithley_dmm6500),
+		1, 100,
 	},
 	{
 		"Keysight", "34465A",
 		1, 5, cmdset_agilent, ARRAY_AND_SIZE(mqopts_agilent_34405a),
 		scpi_dmm_get_meas_agilent,
 		ARRAY_AND_SIZE(devopts_generic),
-		0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
 	},
 	{
 		"OWON", "XDM2041",
 		1, 5, cmdset_owon, ARRAY_AND_SIZE(mqopts_owon_xdm2041),
 		scpi_dmm_get_meas_gwinstek,
 		ARRAY_AND_SIZE(devopts_generic),
-		0, 1e9,
+		0, 1e9, 0, 0, 0, 0, 0, 0,
 	},
 };
 
@@ -457,7 +557,13 @@ static int config_get(uint32_t key, GVariant **data,
 	enum sr_mq mq;
 	enum sr_mqflag mqflag;
 	GVariant *arr[2];
+	const char *range_str;
+	char *range_query = NULL;
 	int ret;
+	size_t i;
+	float nplc;
+	gboolean avg;
+	uint64_t avg_cnt;
 
 	(void)cg;
 
@@ -481,7 +587,68 @@ static int config_get(uint32_t key, GVariant **data,
 		*data = g_variant_new_tuple(arr, ARRAY_SIZE(arr));
 		return SR_OK;
 	case SR_CONF_RANGE:
-		sr_dbg("Get Range %d", __LINE__);
+		ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
+		if (ret != SR_OK)
+			return ret;
+		/* Check for fixed ranges */
+		for (i = 0; i < devc->model->rageopts_size; i++) {
+			if (devc->model->rangeopts[i].mq == mq &&
+				devc->model->rangeopts[i].mqflag == mqflag &&
+				g_strcmp0(devc->model->rangeopts[i].scpi_range, "") == 0) {
+				range_str = devc->model->rangeopts[i].range_str;
+				*data = g_variant_new_string(range_str);
+				return SR_OK;
+				}
+		}
+		ret = scpi_dmm_get_range_auto(sdi, mq, mqflag, &range_query);
+		if (ret != SR_OK)
+			return ret;
+		if (!range_query) {
+			ret = scpi_dmm_get_range(sdi, mq, mqflag, &range_query);
+			if (ret != SR_OK)
+				return ret;
+		}
+		for (i = 0; i < devc->model->rageopts_size; i++) {
+			if (devc->model->rangeopts[i].mq == mq &&
+				devc->model->rangeopts[i].mqflag == mqflag &&
+				g_strcmp0(devc->model->rangeopts[i].scpi_range, range_query) == 0) {
+				range_str = devc->model->rangeopts[i].range_str;
+				break;
+			}
+		}
+		g_free(range_query);
+		*data = g_variant_new_string(range_str);
+		return SR_OK;
+	case SR_CONF_ADC_POWERLINE_CYCLES:
+		ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
+		if (ret != SR_OK)
+			return ret;
+		for (i = 0; i < devc->model->nplcopts_size; i++) {
+			if (devc->model->nplcopts[i].mq == mq &&
+				devc->model->nplcopts[i].mqflag == mqflag) {
+				scpi_dmm_get_nplc(sdi, mq, mqflag, &nplc);
+				*data = g_variant_new_double(nplc);
+				return SR_OK;
+			}
+		}
+		return SR_ERR_NA;
+	case SR_CONF_AVERAGING:
+		ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
+		if (ret != SR_OK)
+			return ret;
+		ret = scpi_dmm_get_avg(sdi, mq, mqflag, &avg);
+		if (ret != SR_OK)
+			return ret;
+		*data = g_variant_new_boolean(avg);
+		return SR_OK;
+	case SR_CONF_AVG_SAMPLES:
+		ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
+		if (ret != SR_OK)
+			return ret;
+		ret = scpi_dmm_get_avg_cnt(sdi, mq, mqflag, &avg_cnt);
+		if (ret != SR_OK)
+			return ret;
+		*data = g_variant_new_uint64(avg_cnt);
 		return SR_OK;
 	default:
 		return SR_ERR_NA;
@@ -495,6 +662,12 @@ static int config_set(uint32_t key, GVariant *data,
 	enum sr_mq mq;
 	enum sr_mqflag mqflag;
 	GVariant *tuple_child;
+	const char *range_str;
+	int ret;
+	float nplc;
+	gboolean avg;
+	uint64_t avg_cnt;
+	size_t i;
 
 	(void)cg;
 
@@ -513,8 +686,48 @@ static int config_set(uint32_t key, GVariant *data,
 		g_variant_unref(tuple_child);
 		return scpi_dmm_set_mq(sdi, mq, mqflag);
 	case SR_CONF_RANGE:
-		sr_dbg("Set Range list %d", __LINE__);
-		return SR_OK;
+		ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
+		if (ret != SR_OK)
+			return ret;
+		range_str = g_variant_get_string(data, NULL);
+		if (g_strcmp0(range_str, "Auto") == 0)
+			return scpi_dmm_set_range_auto(sdi, mq, mqflag);
+		for (i = 0; i < devc->model->rageopts_size; i++) {
+			if (devc->model->rangeopts[i].mq == mq &&
+				devc->model->rangeopts[i].mqflag == mqflag &&
+				g_strcmp0(devc->model->rangeopts[i].range_str, range_str) == 0) {
+				return scpi_dmm_set_range(sdi, mq, mqflag, devc->model->rangeopts[i].scpi_range);
+			}
+		}
+		return SR_ERR_NA;
+	case SR_CONF_ADC_POWERLINE_CYCLES:
+		ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
+		if (ret != SR_OK)
+			return ret;
+		nplc = g_variant_get_double(data);
+		for (i = 0; i < devc->model->nplcopts_size; i++) {
+			if (devc->model->nplcopts[i].mq == mq &&
+				devc->model->nplcopts[i].mqflag == mqflag) {
+				if (devc->model->nplcopts[i].nplc_min <= nplc &&
+				devc->model->nplcopts[i].nplc_max >= nplc)
+					return scpi_dmm_set_nplc(sdi, mq, mqflag, nplc);
+				else
+					return SR_ERR_DATA;
+			}
+		}
+		return SR_ERR_NA;
+	case SR_CONF_AVERAGING:
+		ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
+		if (ret != SR_OK)
+			return ret;
+		avg = g_variant_get_boolean(data);
+		return scpi_dmm_set_avg(sdi, mq, mqflag, avg);
+	case SR_CONF_AVG_SAMPLES:
+		ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
+		if (ret != SR_OK)
+			return ret;
+		avg_cnt = g_variant_get_uint64(data);
+		return scpi_dmm_set_avg_cnt(sdi, mq, mqflag, avg_cnt);
 	default:
 		return SR_ERR_NA;
 	}
@@ -525,6 +738,9 @@ static int config_list(uint32_t key, GVariant **data,
 {
 	struct dev_context *devc;
 	GVariant *gvar, *arr[2];
+	enum sr_mq mq;
+	enum sr_mqflag mqflag;
+	int ret;
 	GVariantBuilder gvb;
 	size_t i;
 
@@ -555,8 +771,21 @@ static int config_list(uint32_t key, GVariant **data,
 		*data = g_variant_builder_end(&gvb);
 		return SR_OK;
 	case SR_CONF_RANGE:
-		sr_dbg("Get Range list %d", __LINE__);
-		return SR_ERR_NA;
+		if (!devc)
+			return SR_ERR_ARG;
+		ret = scpi_dmm_get_mq(sdi, &mq, &mqflag, NULL, NULL);
+		if (ret != SR_OK)
+			return ret;
+		g_variant_builder_init(&gvb, G_VARIANT_TYPE_ARRAY);
+		for (i = 0; i < devc->model->rageopts_size; i++) {
+			if (devc->model->rangeopts[i].mq == mq &&
+				devc->model->rangeopts[i].mqflag == mqflag) {
+				g_variant_builder_add(&gvb, "s", devc->model->rangeopts[i].range_str);
+			}
+		}
+		*data = g_variant_builder_end(&gvb);
+		return SR_OK;
+		break;
 	default:
 		(void)devc;
 		return SR_ERR_NA;

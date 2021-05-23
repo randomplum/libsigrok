@@ -41,6 +41,16 @@ enum scpi_dmm_cmdcode {
 	DMM_CMD_QUERY_VALUE,
 	DMM_CMD_QUERY_PREC,
 	DMM_CMD_SETUP_LOCAL,
+	DMM_CMD_QUERY_RANGE,
+	DMM_CMD_QUERY_RANGE_AUTO,
+	DMM_CMD_SETUP_RANGE,
+	DMM_CMD_SETUP_RANGE_AUTO,
+	DMM_CMD_QUERY_NPLC,
+	DMM_CMD_SETUP_NPLC,
+	DMM_CMD_SETUP_AVG_COUNT,
+	DMM_CMD_QUERY_AVG_COUNT,
+	DMM_CMD_SETUP_AVG,
+	DMM_CMD_QUERY_AVG,
 };
 
 struct mqopt_item {
@@ -51,6 +61,20 @@ struct mqopt_item {
 	int default_precision;
 };
 #define NO_DFLT_PREC	-99
+
+struct scpi_dmm_rangeopts {
+	enum sr_mq mq;
+	enum sr_mqflag mqflag;
+	const char *scpi_range;
+	const char *range_str;
+};
+
+struct scpi_dmm_nplcopts {
+	enum sr_mq mq;
+	enum sr_mqflag mqflag;
+	const float nplc_min;
+	const float nplc_max;
+};
 
 struct scpi_dmm_model {
 	const char *vendor;
@@ -65,6 +89,12 @@ struct scpi_dmm_model {
 	size_t devopts_size;
 	unsigned int read_timeout_us; /* If zero, use default from src/scpi/scpi.c. */
 	float infinity_limit; /* If zero, use default from protocol.c */
+	const struct scpi_dmm_rangeopts *rangeopts;
+	size_t rageopts_size;
+	const struct scpi_dmm_nplcopts *nplcopts;
+	size_t nplcopts_size;
+	uint64_t avg_min;
+	uint64_t avg_max;
 };
 
 struct dev_context {
@@ -96,8 +126,28 @@ SR_PRIV const struct mqopt_item *scpi_dmm_lookup_mq_text(
 SR_PRIV int scpi_dmm_get_mq(const struct sr_dev_inst *sdi,
 	enum sr_mq *mq, enum sr_mqflag *flag, char **rsp,
 	const struct mqopt_item **mqitem);
+SR_PRIV int scpi_dmm_get_range_auto(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, char **range);
+SR_PRIV int scpi_dmm_get_range(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, char **range);
 SR_PRIV int scpi_dmm_set_mq(const struct sr_dev_inst *sdi,
 	enum sr_mq mq, enum sr_mqflag flag);
+SR_PRIV int scpi_dmm_set_range(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, const char *range);
+SR_PRIV int scpi_dmm_set_range_auto(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag);
+SR_PRIV int scpi_dmm_set_nplc(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, float nplc);
+SR_PRIV int scpi_dmm_get_nplc(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, float *nplc);
+SR_PRIV int scpi_dmm_get_avg(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, gboolean *avg);
+SR_PRIV int scpi_dmm_set_avg(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, gboolean avg);
+SR_PRIV int scpi_dmm_get_avg_cnt(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, uint64_t *cnt);
+SR_PRIV int scpi_dmm_set_avg_cnt(const struct sr_dev_inst *sdi,
+	enum sr_mq mq, enum sr_mqflag flag, uint64_t cnt);
 SR_PRIV int scpi_dmm_get_meas_agilent(const struct sr_dev_inst *sdi, size_t ch);
 SR_PRIV int scpi_dmm_get_meas_gwinstek(const struct sr_dev_inst *sdi, size_t ch);
 SR_PRIV int scpi_dmm_get_meas_keithley(const struct sr_dev_inst *sdi, size_t ch);

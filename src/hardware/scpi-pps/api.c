@@ -339,6 +339,7 @@ static int config_get(uint32_t key, GVariant **data,
 	const char *s;
 	int reg;
 	gboolean is_hmp_sqii;
+	gboolean is_eez;
 
 	if (!sdi)
 		return SR_ERR_ARG;
@@ -472,6 +473,11 @@ static int config_get(uint32_t key, GVariant **data,
 	is_hmp_sqii |= cmd == SCPI_CMD_GET_OUTPUT_REGULATION;
 	is_hmp_sqii |= cmd == SCPI_CMD_GET_OVER_TEMPERATURE_PROTECTION_ACTIVE;
 	is_hmp_sqii &= devc->device->dialect == SCPI_DIALECT_HMP;
+	is_eez = FALSE;
+	is_eez |= cmd == SCPI_CMD_GET_OUTPUT_REGULATION;
+	is_eez |= cmd == SCPI_CMD_GET_MEAS_VOLTAGE;
+	is_eez |= cmd == SCPI_CMD_GET_MEAS_CURRENT;
+	is_eez &= devc->device->dialect == SCPI_DIALECT_EEZ;
 	if (is_hmp_sqii) {
 		if (!cg) {
 			/* STAT:QUES:INST:ISUMx query requires channel spec. */
@@ -480,6 +486,11 @@ static int config_get(uint32_t key, GVariant **data,
 		}
 		ret = sr_scpi_cmd_resp(sdi, devc->device->commands,
 			0, NULL, data, gvtype, cmd, channel_group_name);
+	} else if (is_eez)
+	{
+		ret = sr_scpi_cmd_resp(sdi, devc->device->commands,
+			0, NULL, data, G_VARIANT_TYPE_STRING, SCPI_CMD_GET_OUTPUT_REGULATION,
+			channel_group_name);
 	} else {
 		ret = sr_scpi_cmd_resp(sdi, devc->device->commands,
 			channel_group_cmd, channel_group_name, data, gvtype, cmd);
@@ -548,12 +559,25 @@ static int config_get(uint32_t key, GVariant **data,
 				*data = g_variant_new_string("UR");
 		}
 
+		if (devc->device->dialect == SCPI_DIALECT_EEZ) {
+			s = g_variant_get_string(*data, NULL);
+			if (g_strcmp0(s, "\"CV\"") && g_strcmp0(s, "\"CC\"") &&
+				g_strcmp0(s, "\"UR\"")) {
+				sr_err("Unknown response to SCPI_CMD_GET_OUTPUT_REGULATION: %s", s);
+				ret = SR_ERR_DATA;
+			} else {
+				*data = g_variant_new_string(g_strsplit(s, "\"", 0)[1]);
+			}
+
+		}
 		s = g_variant_get_string(*data, NULL);
 		if (g_strcmp0(s, "CV") && g_strcmp0(s, "CC") && g_strcmp0(s, "CC-") &&
 			g_strcmp0(s, "UR") && g_strcmp0(s, "")) {
-
 			sr_err("Unknown response to SCPI_CMD_GET_OUTPUT_REGULATION: %s", s);
 			ret = SR_ERR_DATA;
+		}
+		else {
+			*data = g_variant_new_string(s);
 		}
 	}
 
@@ -770,24 +794,36 @@ static int config_list(uint32_t key, GVariant **data,
 		if (!devc || !devc->device)
 			return SR_ERR_ARG;
 		ch_spec = &(devc->device->channels[pch->hw_output_idx]);
+		if (ch_spec == NULL)
+			ch_spec = &(devc->channels[pch->hw_output_idx]);
 
 		switch (key) {
 		case SR_CONF_DEVICE_OPTIONS:
 			*data = std_gvar_array_u32(devc->device->devopts_cg, devc->device->num_devopts_cg);
 			break;
 		case SR_CONF_VOLTAGE_TARGET:
+			if (ch_spec == NULL)
+				return SR_ERR_NA;
 			*data = std_gvar_min_max_step_array(ch_spec->voltage);
 			break;
 		case SR_CONF_OUTPUT_FREQUENCY_TARGET:
+			if (ch_spec == NULL)
+				return SR_ERR_NA;
 			*data = std_gvar_min_max_step_array(ch_spec->frequency);
 			break;
 		case SR_CONF_CURRENT_LIMIT:
+			if (ch_spec == NULL)
+				return SR_ERR_NA;
 			*data = std_gvar_min_max_step_array(ch_spec->current);
 			break;
 		case SR_CONF_OVER_VOLTAGE_PROTECTION_THRESHOLD:
+			if (ch_spec == NULL)
+				return SR_ERR_NA;
 			*data = std_gvar_min_max_step_array(ch_spec->ovp);
 			break;
 		case SR_CONF_OVER_CURRENT_PROTECTION_THRESHOLD:
+			if (ch_spec == NULL)
+				return SR_ERR_NA;
 			*data = std_gvar_min_max_step_array(ch_spec->ocp);
 			break;
 		default:
